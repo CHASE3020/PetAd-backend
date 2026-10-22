@@ -24,6 +24,7 @@ const API_PREFIX = 'api/v1';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // TODO(#215): Add server-side TOTP enrollment, challenge, and recovery flows.
 
   const configService = app.get(ConfigService);
 
