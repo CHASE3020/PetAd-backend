@@ -35,7 +35,7 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-EXPOSE 3001
+EXPOSE 3000
 
 # CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:dev"]
 CMD ["npm", "run", "start:dev"]

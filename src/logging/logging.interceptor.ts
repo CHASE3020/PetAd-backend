@@ -37,6 +37,7 @@ export class LoggingInterceptor implements NestInterceptor {
             path: originalUrl,
             statusCode: response.statusCode,
             duration,
+            requestId: request.requestId,
           },
         });
       }),
@@ -53,6 +54,7 @@ export class LoggingInterceptor implements NestInterceptor {
             method,
             path: originalUrl,
             duration,
+            requestId: request.requestId,
           },
         });
 

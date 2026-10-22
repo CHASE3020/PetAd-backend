@@ -21,11 +21,12 @@ import { JobsModule } from './jobs/jobs.module';
 import { AdminModule } from './admin/admin.module';
 import { EventLedgerModule } from './event-ledger/event-ledger.module';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { configuration } from './config/configuration';
 
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
