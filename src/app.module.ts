@@ -20,9 +20,7 @@ import { LoggingInterceptor } from './logging/logging.interceptor';
 import { JobsModule } from './jobs/jobs.module';
 import { AdminModule } from './admin/admin.module';
 import { EventLedgerModule } from './event-ledger/event-ledger.module';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { configuration } from './config/configuration';
-
 
 @Module({
   imports: [
@@ -33,9 +31,8 @@ import { configuration } from './config/configuration';
         limit: 100,
       },
     ]),
-         
-    
-// To be used only when limits needs to be persisted upon restart
+
+    // To be used only when limits needs to be persisted upon restart
 
     // ThrottlerModule.forRoot({
     //   throttlers: [{ ttl: 60000, limit: 100 }],
@@ -44,7 +41,7 @@ import { configuration } from './config/configuration';
     //     port: 6379,
     //   }),
     // }),
-    
+
     PrismaModule,
     PetsModule,
     AdoptionModule,
@@ -58,7 +55,6 @@ import { configuration } from './config/configuration';
     JobsModule,
     AdminModule,
     EventLedgerModule,
-
   ],
 
   controllers: [AppController],
@@ -76,5 +72,3 @@ import { configuration } from './config/configuration';
   ],
 })
 export class AppModule {}
-
-

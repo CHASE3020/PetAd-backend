@@ -30,11 +30,12 @@ async function bootstrap() {
   // All configuration is read through ConfigService (typed via configuration.ts).
   const port = configService.get<number>('port', 3000);
   const nodeEnv = configService.get<string>('nodeEnv', 'development');
-  const corsConfig = configService.get<{
-    enabled?: boolean;
-    credentials?: boolean;
-    allowedOrigins?: string[];
-  }>('cors') || {};
+  const corsConfig =
+    configService.get<{
+      enabled?: boolean;
+      credentials?: boolean;
+      allowedOrigins?: string[];
+    }>('cors') || {};
   const bodyLimit = configService.get<string>('bodyLimit', '100kb');
   const trustProxy = configService.get<boolean>('trustProxy', false);
 
@@ -60,7 +61,8 @@ async function bootstrap() {
 
   // 3. CORS allowlisting. Wildcard origins are rejected when credentials are enabled.
   if (corsConfig.enabled) {
-    if (corsConfig.credentials && corsConfig.allowedOrigins.includes('*')) {
+    const allowedOrigins = corsConfig.allowedOrigins || [];
+    if (corsConfig.credentials && allowedOrigins.includes('*')) {
       throw new Error(
         'CORS credentials are enabled but CORS_ORIGINS contains "*". ' +
           'List explicit allowed origins in CORS_ORIGINS, or disable credentials.',
@@ -81,7 +83,6 @@ async function bootstrap() {
   // 5. Environment-driven proxy trust.
   if (trustProxy) {
     app.use((req, res, next) => {
-      // trust first proxy (e.g. load balancer / Docker Compose)
       req['trust proxy'] = 1;
       next();
     });

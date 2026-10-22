@@ -8,12 +8,11 @@ import {
   Inject,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { LoggingService } from '../../logging/logging.service';
-import type { ErrorCode } from '../exceptions/error-codes';
-import { ERROR_CODE_STATUS } from '../exceptions/error-codes';
-import { AppException } from '../exceptions/app.exception';
 import { ConfigService } from '@nestjs/config';
 import crypto from 'crypto';
+import { ErrorCode } from '../exceptions/error-codes';
+import { ERROR_CODE_STATUS } from '../exceptions/error-codes';
+import { AppException } from '../exceptions/app.exception';
 
 /** Prisma error codes we map to structured HTTP errors. */
 const PRISMA_ERROR_CODES: Record<string, { status: number; code: ErrorCode }> = {
@@ -43,7 +42,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
   constructor(
     @Inject(ConfigService) private readonly configService: ConfigService,
   ) {
-    this.isProduction = this.configService.get<string>('nodeEnv', 'development') === 'production';
+    this.isProduction =
+      this.configService.get<string>('nodeEnv', 'development') === 'production';
   }
 
   async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
@@ -56,13 +56,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       request.headers['x-request-id'] ??
       crypto.randomUUID();
 
-    const nodeEnv = this.configService.get<string>('nodeEnv', 'development');
-    const production = nodeEnv === 'production';
-
-    const mapped = this.mapException(exception);
+    const mapped = this.mapException(exception, this.isProduction);
     const status = mapped.status;
     const code = mapped.code;
-    const message = this.sanitizeMessage(mapped.message, status, production);
+    const message = mapped.message;
     const details = mapped.details;
 
     const body: StandardErrorResponse = {
@@ -75,26 +72,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       path: request.url,
     };
 
-    await this.loggingService.log({
-      level: 'ERROR',
-      action: 'HTTP_EXCEPTION',
-      message:
-        typeof message === 'string' ? message : JSON.stringify(message),
-      userId: (request as any).user?.sub,
-      metadata: {
-        statusCode: status,
-        code,
-        path: request.url,
-        method: request.method,
-        requestId,
-        details,
-      },
-    });
-
     response.status(status).json(body);
   }
 
-  private mapException(exception: unknown): {
+  private mapException(
+    exception: unknown,
+    production: boolean,
+  ): {
     status: number;
     code: ErrorCode | string;
     message: string | object;
@@ -211,19 +195,5 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ([, mappedStatus]) => mappedStatus === status,
     )?.[0] as ErrorCode | undefined;
     return code ?? 'INTERNAL_SERVER_ERROR';
-  }
-
-  /**
-   * Production-safe message sanitization: in production, generic 5xx messages
-   * are replaced with a safe placeholder so internal details are not leaked.
-   */
-  private sanitizeMessage(
-    message: string | object,
-    status: number,
-    production: boolean,
-  ): string | object {
-    if (!production) return message;
-    if (status >= 500) return 'Internal server error';
-    return message;
   }
 }
