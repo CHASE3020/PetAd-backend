@@ -131,6 +131,8 @@ model User {
 
   documents Document[]
 
+  @@index([createdAt])
+  @@index([email])
   @@map("users")
 }
 

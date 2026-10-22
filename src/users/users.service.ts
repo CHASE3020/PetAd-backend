@@ -2,6 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ListUsersDto } from './dto/list-users.dto';
+import {
+  PaginatedResponseDto,
+  PaginationMetaDto,
+} from '../common/dto/paginated-response.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -62,6 +68,65 @@ export class UsersService {
         avatarUrl: true,
       },
     });
+  }
+
+  async listUsers(query: ListUsersDto) {
+    const { page = 1, pageSize = 20, q, role, status, sort } = query;
+
+    const limit = Math.min(pageSize || 20, 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {
+      ...(role && { role: role as any }),
+    };
+
+    if (q) {
+      where.OR = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // Handle status if it exists as a field
+    if (status) {
+      (where as any).status = status;
+    }
+
+    let orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' };
+    if (sort) {
+      if (sort.includes(':')) {
+        const [field, direction] = sort.split(':');
+        orderBy = { [field]: direction === 'asc' ? 'asc' : 'desc' } as any;
+      } else {
+        orderBy = { [sort]: 'asc' } as any;
+      }
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          trustScore: true,
+          stellarPublicKey: true,
+          avatarUrl: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const meta = new PaginationMetaDto(page, limit, total);
+    return new PaginatedResponseDto(users, meta);
   }
 
   async updateTrustScore(userId: string, delta: number) {

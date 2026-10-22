@@ -30,7 +30,6 @@ import { FilterAdoptionsDto } from './dto/filter-adoptions.dto';
 import { CurrentUser as GetUser } from '../auth/decorators/current-user.decorator';
 import { RejectAdoptionDto } from './dto/reject-adoption.dto';
 
-
 interface AuthRequest extends Request {
   user: { userId: string; email: string; role: string; sub?: string };
 }
@@ -158,14 +157,25 @@ export class AdoptionController {
    * Retrieves all adoptions matching the query parameters and the user's role constraints.
    */
   @Get()
-  @ApiOperation({ summary: 'Get all adoptions for the current user based on role' })
-  @ApiQuery({ name: 'status', required: false, enum: ['REQUESTED', 'PENDING', 'APPROVED', 'ESCROW_FUNDED', 'COMPLETED', 'REJECTED', 'CANCELLED'] })
+  @ApiOperation({
+    summary: 'Get all adoptions for the current user based on role',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [
+      'REQUESTED',
+      'PENDING',
+      'APPROVED',
+      'ESCROW_FUNDED',
+      'COMPLETED',
+      'REJECTED',
+      'CANCELLED',
+    ],
+  })
   @ApiQuery({ name: 'petId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'List of adoptions' })
-  async findAll(
-    @GetUser() user: any,
-    @Query() query: FilterAdoptionsDto,
-  ) {
+  async findAll(@GetUser() user: any, @Query() query: FilterAdoptionsDto) {
     // If the CurrentUser decorator isn't wired properly, fallback to req.user would be needed,
     // but assuming @GetUser() returns the JwtPayload directly.
     return this.adoptionService.findAll(user, query);

@@ -103,7 +103,9 @@ export class CustodyController {
     status: 404,
     description: 'Not Found - Custody does not exist',
   })
-  async returnCustody(@Param('id') custodyId: string): Promise<CustodyResponseDto> {
+  async returnCustody(
+    @Param('id') custodyId: string,
+  ): Promise<CustodyResponseDto> {
     return this.custodyService.returnCustody(custodyId);
   }
 
@@ -129,7 +131,9 @@ export class CustodyController {
     status: 404,
     description: 'Not Found - Custody does not exist',
   })
-  async violationCustody(@Param('id') custodyId: string): Promise<CustodyResponseDto> {
+  async violationCustody(
+    @Param('id') custodyId: string,
+  ): Promise<CustodyResponseDto> {
     return this.custodyService.violationCustody(custodyId);
   }
 }

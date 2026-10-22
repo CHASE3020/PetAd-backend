@@ -79,7 +79,6 @@ describe('AuthController (e2e)', () => {
       email: uniqueEmail,
       role: 'USER',
     });
-
   }, 10000);
 
   it('should reject duplicate email registration', async () => {
@@ -134,7 +133,6 @@ describe('AuthController (e2e)', () => {
     expect(body.message).toContain(
       'password must be longer than or equal to 8 characters',
     );
-
   });
 
   it('should login successfully and return JWT', async () => {
@@ -240,5 +238,4 @@ describe('AuthController (e2e)', () => {
       ),
     ).toBe(true);
   });
-  
 });

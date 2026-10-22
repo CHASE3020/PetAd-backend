@@ -125,7 +125,10 @@ export class AdoptionService {
     }
 
     // Enforce state machine before updating
-    this.adoptionStateMachine.assertValidTransition(existing.status, dto.status);
+    this.adoptionStateMachine.assertValidTransition(
+      existing.status,
+      dto.status,
+    );
 
     const updated = await this.prisma.adoption.update({
       where: { id: adoptionId },
@@ -161,20 +164,17 @@ export class AdoptionService {
           });
 
           if (adopter?.email) {
-            await this.notificationQueueService.enqueueSendTransactionalEmail(
-              {
-                dto: {
-                  to: adopter.email,
-                  subject: `PetAd: Adoption ${dto.status}`,
-                  text: `Hello! Your adoption has been updated to ${dto.status}.`,
-                },
-                metadata: { adoptionId, newStatus: dto.status },
+            await this.notificationQueueService.enqueueSendTransactionalEmail({
+              dto: {
+                to: adopter.email,
+                subject: `PetAd: Adoption ${dto.status}`,
+                text: `Hello! Your adoption has been updated to ${dto.status}.`,
               },
-            );
+              metadata: { adoptionId, newStatus: dto.status },
+            });
           }
         } catch (error) {
-          const reason =
-            error instanceof Error ? error.message : String(error);
+          const reason = error instanceof Error ? error.message : String(error);
           this.logger.error(
             `Failed to enqueue adoption notification email | adoptionId=${adoptionId} | reason=${reason}`,
           );
@@ -190,7 +190,7 @@ export class AdoptionService {
    * Changes adoption status from PENDING to APPROVED.
    * Sets approvedAt timestamp.
    * Fires ADOPTION_APPROVED event.
-   * 
+   *
    * @throws NotFoundException if adoption doesn't exist
    * @throws DomainException if adoption is not in PENDING status
    */
@@ -200,12 +200,16 @@ export class AdoptionService {
         where: { id: adoptionId },
         include: {
           pet: true,
-          adopter: { select: { id: true, email: true, firstName: true, lastName: true } },
+          adopter: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
         },
       });
 
       if (!adoption) {
-        throw new NotFoundException(`Adoption with id "${adoptionId}" not found`);
+        throw new NotFoundException(
+          `Adoption with id "${adoptionId}" not found`,
+        );
       }
 
       // Validate state transition
@@ -325,7 +329,7 @@ export class AdoptionService {
    * Changes adoption status from PENDING to REJECTED.
    * Updates pet status back to AVAILABLE (frees the pet for other adopters).
    * Optionally stores rejection reason in notes field.
-   * 
+   *
    * @throws NotFoundException if adoption doesn't exist
    * @throws DomainException if adoption is not in PENDING status
    */
@@ -339,12 +343,16 @@ export class AdoptionService {
         where: { id: adoptionId },
         include: {
           pet: true,
-          adopter: { select: { id: true, email: true, firstName: true, lastName: true } },
+          adopter: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
         },
       });
 
       if (!adoption) {
-        throw new NotFoundException(`Adoption with id "${adoptionId}" not found`);
+        throw new NotFoundException(
+          `Adoption with id "${adoptionId}" not found`,
+        );
       }
 
       // Validate state transition
@@ -431,7 +439,10 @@ export class AdoptionService {
    * - SHELTER: Sees only adoptions where they are the owner (plus query filters)
    * - USER: Sees only adoptions where they are the adopter (plus query filters)
    */
-  async findAll(user: any, query: import('./dto/filter-adoptions.dto').FilterAdoptionsDto) {
+  async findAll(
+    user: any,
+    query: import('./dto/filter-adoptions.dto').FilterAdoptionsDto,
+  ) {
     let where: Prisma.AdoptionWhereInput = { ...query };
 
     // Standardize getting the user ID (could be id or userId depending on the JWT payload)

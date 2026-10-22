@@ -36,7 +36,11 @@ export class PetsService {
 
     const computedStatus = await this.availabilityService.resolve(petId);
 
-    return { ...pet, computedStatus, isAvailable: computedStatus === PetStatus.AVAILABLE };
+    return {
+      ...pet,
+      computedStatus,
+      isAvailable: computedStatus === PetStatus.AVAILABLE,
+    };
   }
 
   async create(createPetDto: CreatePetDto, ownerId: string) {
@@ -209,10 +213,14 @@ export class PetsService {
     // ADOPTED in replay means permanently not available -> matches computedStatus=ADOPTED
     // IN_CUSTODY means temporarily unavailable -> matches computedStatus=IN_CUSTODY
     const isMatch =
-      (replayedStatus === PetStatus.AVAILABLE && computedStatus === PetStatus.AVAILABLE) ||
-      (replayedStatus === PetStatus.PENDING && computedStatus === PetStatus.PENDING) ||
-      (replayedStatus === PetStatus.ADOPTED && computedStatus === PetStatus.ADOPTED) ||
-      (replayedStatus === PetStatus.IN_CUSTODY && computedStatus === PetStatus.IN_CUSTODY);
+      (replayedStatus === PetStatus.AVAILABLE &&
+        computedStatus === PetStatus.AVAILABLE) ||
+      (replayedStatus === PetStatus.PENDING &&
+        computedStatus === PetStatus.PENDING) ||
+      (replayedStatus === PetStatus.ADOPTED &&
+        computedStatus === PetStatus.ADOPTED) ||
+      (replayedStatus === PetStatus.IN_CUSTODY &&
+        computedStatus === PetStatus.IN_CUSTODY);
 
     return {
       petId,

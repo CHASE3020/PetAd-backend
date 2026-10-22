@@ -64,9 +64,7 @@ export class CustodyService {
     });
 
     if (activeAdoption) {
-      throw new BadRequestException(
-        'Pet has an active adoption in progress',
-      );
+      throw new BadRequestException('Pet has an active adoption in progress');
     }
 
     // Check if pet has an active custody
@@ -95,9 +93,7 @@ export class CustodyService {
 
     // Validate durationDays range (1-90)
     if (durationDays < 1 || durationDays > 90) {
-      throw new BadRequestException(
-        'Duration must be between 1 and 90 days',
-      );
+      throw new BadRequestException('Duration must be between 1 and 90 days');
     }
 
     // Calculate endDate
@@ -112,10 +108,7 @@ export class CustodyService {
 
       // Create escrow if deposit amount is provided
       if (depositAmount !== undefined && depositAmount !== null) {
-        const escrow = await this.escrowService.createEscrow(
-          depositAmount,
-          tx,
-        );
+        const escrow = await this.escrowService.createEscrow(depositAmount, tx);
         escrowId = escrow.id;
       }
 
@@ -172,10 +165,9 @@ export class CustodyService {
           });
         }
       } catch (error) {
-        const reason =
-          error instanceof Error ? error.message : String(error);
+        const reason = error instanceof Error ? error.message : String(error);
         // Intentionally using Nest logger semantics; don't fail request due to async email.
-        // eslint-disable-next-line no-console
+
         console.error(
           `Failed to enqueue custody notification email | custodyId=${custody.id} | reason=${reason}`,
         );

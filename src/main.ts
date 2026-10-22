@@ -1,7 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AppLogger } from './common/logger/logger.service';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -22,13 +20,8 @@ async function bootstrap() {
     }),
   );
 
-app.useGlobalFilters(
-  app.get(HttpExceptionFilter),
-);
-
-// const loggingInterceptor = app.get(LoggingInterceptor);
-// app.useGlobalInterceptors(loggingInterceptor);
- 
+  // const loggingInterceptor = app.get(LoggingInterceptor);
+  // app.useGlobalInterceptors(loggingInterceptor);
 
   app.useLogger(new AppLogger());
 
@@ -56,4 +49,4 @@ app.useGlobalFilters(
   console.log(`Application is running on: http://localhost:${port}`);
 }
 
-bootstrap();
+void bootstrap();
