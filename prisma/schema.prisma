@@ -15,6 +15,12 @@ enum UserRole {
   SHELTER
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
 enum PetSpecies {
   DOG
   CAT
@@ -95,6 +101,8 @@ enum EventType {
   ESCROW_RELEASED
   ESCROW_REFUNDED
   TRUST_SCORE_UPDATED
+  USER_SUSPENDED
+  USER_REINSTATED
 }
 
 enum LogLevel {
@@ -111,6 +119,10 @@ model User {
   firstName String   @map("first_name")
   lastName  String   @map("last_name")
   role      UserRole @default(USER)
+
+  status           UserStatus @default(ACTIVE)
+  suspendedAt      DateTime?  @map("suspended_at")
+  suspensionReason String?    @map("suspension_reason")
 
   trustScore Float   @default(50)
 
@@ -131,6 +143,7 @@ model User {
 
   documents Document[]
 
+  @@index([status])
   @@map("users")
 }
 
