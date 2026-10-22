@@ -15,6 +15,20 @@ enum UserRole {
   SHELTER
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum DataExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
 enum PetSpecies {
   DOG
   CAT
@@ -105,17 +119,19 @@ enum LogLevel {
 // ─── Models ──────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
+  id        String     @id @default(uuid())
+  email     String     @unique
   password  String
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  role      UserRole @default(USER)
+  firstName String     @map("first_name")
+  lastName  String     @map("last_name")
+  role      UserRole   @default(USER)
+  status    UserStatus @default(ACTIVE)
 
   trustScore Float   @default(50)
 
-  stellarPublicKey String? @unique @map("stellar_public_key")
-  avatarUrl        String? @map("avatar_url")
+  stellarPublicKey String?   @unique @map("stellar_public_key")
+  avatarUrl        String?   @map("avatar_url")
+  deletedAt        DateTime? @map("deleted_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -130,6 +146,8 @@ model User {
   events EventLog[] @relation("ActorEvents")
 
   documents Document[]
+
+  dataExports DataExport[]
 
   @@map("users")
 }
@@ -295,5 +313,24 @@ model Document {
 
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   adoption     Adoption @relation(fields: [adoptionId], references: [id])
+}
+
+model DataExport {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       DataExportStatus @default(PENDING)
+  filePath     String?          @map("file_path")
+  fileSize     Int?             @map("file_size")
+  downloadUrl  String?          @map("download_url")
+  expiresAt    DateTime?        @map("expires_at")
+  errorMessage String?          @map("error_message")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("data_exports")
 }
 
