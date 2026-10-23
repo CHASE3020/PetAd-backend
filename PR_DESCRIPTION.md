@@ -1,6 +1,6 @@
 # Pull Request: Fix Issue #210 Refresh Tokens and Security
 
-Note: Cleaned up contributor references.
+Note: Updated pull request as requested.
 
 ## Summary
 
