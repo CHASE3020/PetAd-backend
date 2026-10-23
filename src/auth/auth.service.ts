@@ -23,6 +23,14 @@ export class AuthService {
     { count: number; lastAttempt: number }
   >();
 
+  private recordFailedAttempt(key: string) {
+    const current = this.loginAttempts.get(key) || { count: 0, lastAttempt: Date.now() };
+    this.loginAttempts.set(key, {
+      count: current.count + 1,
+      lastAttempt: Date.now(),
+    });
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
