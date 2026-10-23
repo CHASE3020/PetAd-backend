@@ -1,5 +1,7 @@
 # Pull Request: Fix Issue #210 Refresh Tokens and Security
 
+Note: Cleaned up contributor references.
+
 ## Summary
 
 This PR addresses two backend issues from the Stellar Wave Program:
