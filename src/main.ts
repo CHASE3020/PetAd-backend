@@ -25,6 +25,7 @@ const API_PREFIX = 'api/v1';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // TODO(#215): Add server-side TOTP enrollment, challenge, and recovery flows.
+  // TODO(#204): Coordinate graceful shutdown of Prisma, Redis, and job workers.
 
   const configService = app.get(ConfigService);
 
