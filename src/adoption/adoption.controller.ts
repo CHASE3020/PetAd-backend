@@ -192,7 +192,10 @@ export class AdoptionController {
   })
   @ApiQuery({ name: 'petId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'List of adoptions' })
-  async findAll(@GetUser() user: any, @Query() query: FilterAdoptionsDto) {
+async findAll(
+    @GetUser() user: any,
+    @Query() query: FilterAdoptionsDto,
+  ) {
     // If the CurrentUser decorator isn't wired properly, fallback to req.user would be needed,
     // but assuming @GetUser() returns the JwtPayload directly.
     return this.adoptionService.findAll(user, query);
