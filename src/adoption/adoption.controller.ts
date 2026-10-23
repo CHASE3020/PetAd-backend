@@ -29,7 +29,8 @@ import { ApiQuery, ApiResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FilterAdoptionsDto } from './dto/filter-adoptions.dto';
 import { CurrentUser as GetUser } from '../auth/decorators/current-user.decorator';
 import { RejectAdoptionDto } from './dto/reject-adoption.dto';
-
+import { CheckPolicy } from '../common/policies/check-policy.decorator';
+import { PolicyAction, PolicySubject } from '../common/policies/policy.types';
 
 interface AuthRequest extends Request {
   user: { userId: string; email: string; role: string; sub?: string };
@@ -118,6 +119,7 @@ export class AdoptionController {
   }
 
   @Post(':id/documents')
+  @CheckPolicy(PolicyAction.UPLOAD, PolicySubject.ADOPTION)
   @UseInterceptors(
     FilesInterceptor('files', 5, {
       limits: {
@@ -154,18 +156,43 @@ export class AdoptionController {
   }
 
   /**
+   * GET /adoption/:id
+   * Returns a single adoption to its adopter, its owner or an admin.
+   * Any other caller receives 404 so the resource is not disclosed.
+   */
+  @Get(':id')
+  @CheckPolicy(PolicyAction.READ, PolicySubject.ADOPTION)
+  @ApiOperation({ summary: 'Get one adoption (participant or admin only)' })
+  @ApiResponse({ status: 200, description: 'Adoption found' })
+  @ApiResponse({ status: 404, description: 'Adoption not found' })
+  getAdoption(@Param('id') id: string) {
+    return this.adoptionService.findOne(id);
+  }
+
+  /**
    * GET /adoption
    * Retrieves all adoptions matching the query parameters and the user's role constraints.
    */
   @Get()
-  @ApiOperation({ summary: 'Get all adoptions for the current user based on role' })
-  @ApiQuery({ name: 'status', required: false, enum: ['REQUESTED', 'PENDING', 'APPROVED', 'ESCROW_FUNDED', 'COMPLETED', 'REJECTED', 'CANCELLED'] })
+  @ApiOperation({
+    summary: 'Get all adoptions for the current user based on role',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [
+      'REQUESTED',
+      'PENDING',
+      'APPROVED',
+      'ESCROW_FUNDED',
+      'COMPLETED',
+      'REJECTED',
+      'CANCELLED',
+    ],
+  })
   @ApiQuery({ name: 'petId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'List of adoptions' })
-  async findAll(
-    @GetUser() user: any,
-    @Query() query: FilterAdoptionsDto,
-  ) {
+  async findAll(@GetUser() user: any, @Query() query: FilterAdoptionsDto) {
     // If the CurrentUser decorator isn't wired properly, fallback to req.user would be needed,
     // but assuming @GetUser() returns the JwtPayload directly.
     return this.adoptionService.findAll(user, query);

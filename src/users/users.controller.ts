@@ -16,6 +16,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -33,6 +34,13 @@ import {
   DataExportInitiatedDto,
   DataExportStatusResponseDto,
 } from './data-export/dto/data-export-response.dto';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '../auth/enums/role.enum';
+import { UsersService } from './users.service';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ListUsersDto } from './dto/list-users.dto';
+import { SuspendUserDto } from './dto/suspend-user.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
@@ -49,6 +57,9 @@ interface DownloadRequest extends Request {
 interface AuthRequest extends Request {
   user: {
     userId: string;
+interface AuthRequest extends Request {
+  user: {
+    userId?: string;
     sub?: string;
     role: string;
   };
@@ -68,8 +79,26 @@ export class UsersController {
   private checkOwnership(req: AuthRequest, id: string) {
     const currentUserId = req.user.userId || req.user.sub;
     if (currentUserId !== id && req.user.role !== 'ADMIN') {
+    if (
+      req.user.userId !== id &&
+      req.user.sub !== id &&
+      req.user.role !== 'ADMIN'
+    ) {
       throw new UnauthorizedException();
     }
+  }
+
+  private actorId(req: AuthRequest): string | undefined {
+    return req.user.userId ?? req.user.sub;
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'List users (Admin only)' })
+  async listUsers(@Query() query: ListUsersDto) {
+    return this.usersService.listUsers(query);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 5 } })
@@ -223,5 +252,43 @@ export class UsersController {
   async deleteProfile(@Param('id') id: string, @Req() req: AuthRequest) {
     this.checkOwnership(req, id);
     return this.usersService.deleteProfile(id);
+  }
+
+  @Post(':id/suspend')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Suspend a user account (Admin only)',
+    description:
+      'Blocks the account immediately: the suspended user cannot authenticate with an existing token and their pet listings are removed from public search.',
+  })
+  @ApiResponse({ status: 200, description: 'User suspended' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 409, description: 'User is already suspended' })
+  async suspend(
+    @Param('id') id: string,
+    @Body() dto: SuspendUserDto,
+    @Req() req: AuthRequest,
+  ) {
+    return this.usersService.suspend(id, dto.reason, this.actorId(req));
+  }
+
+  @Post(':id/reinstate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reinstate a suspended user account (Admin only)',
+    description:
+      'Restores ACTIVE status, clears suspension metadata and lets the user authenticate and list pets again.',
+  })
+  @ApiResponse({ status: 200, description: 'User reinstated' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 409, description: 'User is not suspended' })
+  async reinstate(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.usersService.reinstate(id, this.actorId(req));
   }
 }

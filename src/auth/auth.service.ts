@@ -1,59 +1,268 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+  Logger,
+  Optional,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly forgotRateLimitMap = new Map<string, number>();
+  private readonly loginAttempts = new Map<
+    string,
+    { count: number; lastAttempt: number }
+  >();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    @Optional()
+    private readonly emailService?: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
-    const { email, password, firstName, lastName } = dto;
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existingUser) {
       throw new ConflictException('Email already registered');
     }
-    const passwordHash = await bcrypt.hash(password, 12);
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
     const user = await this.prisma.user.create({
       data: {
-        email,
-        password: passwordHash,
-        firstName,
-        lastName,
+        email: dto.email,
+        password: hashedPassword,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
       },
     });
+
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const access_token = await this.jwtService.signAsync(payload);
+    const access_token = this.jwtService.sign(payload);
+
     return {
       access_token,
-      user: { id: user.id, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
     };
   }
 
   async login(dto: LoginDto) {
-    const { email, password } = dto;
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const key = dto.email;
+    const attempts = this.loginAttempts.get(key);
+    if (
+      attempts &&
+      attempts.count >= 5 &&
+      Date.now() - attempts.lastAttempt < 15 * 60 * 1000
+    ) {
+      throw new UnauthorizedException('Too many login attempts');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
     if (!user) {
+      this.recordFailedAttempt(key);
       throw new UnauthorizedException('Invalid credentials');
     }
-    const passwordValid = await bcrypt.compare(password, user.password);
-    if (!passwordValid) {
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+
+    if (!isPasswordValid) {
+      this.recordFailedAttempt(key);
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    this.loginAttempts.delete(key);
+
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const access_token = await this.jwtService.signAsync(payload);
+    const access_token = this.jwtService.sign(payload);
+
     return {
       access_token,
-      user: { id: user.id, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
     };
+  }
+
+  /**
+   * Returns the profile of the authenticated user. The token is only
+   * accepted when the account still exists, so a deleted user's token
+   * is rejected with 401.
+   */
+  async getCurrentUser(userId?: string) {
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return user;
+  }
+
+  async logout() {
+    return { message: 'Logged out successfully' };
+  }
+
+  /**
+   * Tracks a failed login attempt for in-memory account lockout.
+   * After 5 consecutive failures within 15 minutes the account is
+   * locked until the window elapses.
+   */
+  private recordFailedAttempt(key: string) {
+    const attempts = this.loginAttempts.get(key) || {
+      count: 0,
+      lastAttempt: 0,
+    };
+    attempts.count++;
+    attempts.lastAttempt = Date.now();
+    this.loginAttempts.set(key, attempts);
+  }
+
+  async forgotPassword(email: string, ip: string) {
+    const rateLimitKey = `${email}:${ip}`;
+    const now = Date.now();
+    const lastRequest = this.forgotRateLimitMap.get(rateLimitKey) || 0;
+    const rateLimitWindowMs = 60 * 1000; // 1 minute rate limit window
+
+    if (now - lastRequest < rateLimitWindowMs) {
+      this.logger.warn(
+        `Rate limit exceeded for forgot password: ${rateLimitKey}`,
+      );
+      // Return 202 identical response for anti-enumeration and rate-limiting
+      return {
+        message: 'If the email exists, a password reset link has been sent.',
+      };
+    }
+
+    this.forgotRateLimitMap.set(rateLimitKey, now);
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min TTL
+
+      await this.prisma.passwordResetToken.create({
+        data: {
+          tokenHash,
+          userId: user.id,
+          expiresAt,
+          used: false,
+        },
+      });
+
+      if (this.emailService) {
+        try {
+          await this.emailService.sendTransactionalEmail({
+            to: user.email,
+            subject: 'Password Reset Request',
+            text: `Your password reset token is: ${rawToken}. It expires in 30 minutes.`,
+          });
+        } catch (err) {
+          this.logger.error(`Failed to send password reset email: ${err}`);
+        }
+      }
+    }
+
+    return {
+      message: 'If the email exists, a password reset link has been sent.',
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const resetRecord = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !resetRecord ||
+      resetRecord.used ||
+      resetRecord.expiresAt < new Date()
+    ) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Mark token as used
+      await tx.passwordResetToken.update({
+        where: { id: resetRecord.id },
+        data: { used: true },
+      });
+
+      // Update user password
+      await tx.user.update({
+        where: { id: resetRecord.userId },
+        data: { password: hashedPassword },
+      });
+
+      // Revoke all sessions/tokens if any other tracking exists, or delete all other reset tokens for this user
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: resetRecord.userId, id: { not: resetRecord.id } },
+      });
+    });
+
+    if (this.emailService) {
+      try {
+        await this.emailService.sendTransactionalEmail({
+          to: resetRecord.user.email,
+          subject: 'Password Reset Successful',
+          text: 'Your password has been successfully reset. All active sessions have been revoked.',
+        });
+      } catch (err) {
+        this.logger.error(
+          `Failed to send password reset confirmation email: ${err}`,
+        );
+      }
+    }
+
+    return { message: 'Password successfully reset' };
   }
 }

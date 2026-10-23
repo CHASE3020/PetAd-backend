@@ -1,8 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PublicProfileDto } from './dto/public-profile.dto';
+import { ListUsersDto } from './dto/list-users.dto';
+import {
+  PaginatedResponseDto,
+  PaginationMetaDto,
+} from '../common/dto/paginated-response.dto';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
+
+const SUSPENSION_SELECT = {
+  id: true,
+  email: true,
+  role: true,
+  status: true,
+  suspendedAt: true,
+  suspensionReason: true,
+} satisfies Prisma.UserSelect;
 
 @Injectable()
 export class UsersService {
@@ -95,6 +114,9 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
+        status: true,
+        suspendedAt: true,
+        suspensionReason: true,
         avatarUrl: true,
         createdAt: true,
       },
@@ -138,6 +160,170 @@ export class UsersService {
         avatarUrl: true,
       },
     });
+  }
+
+  /**
+   * Suspends an account. Suspended users keep their data but can no longer
+   * authenticate and their listings are hidden from public pet search.
+   *
+   * @throws NotFoundException if the user does not exist
+   * @throws ConflictException if the user is already suspended
+   */
+  async suspend(userId: string, reason: string, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new ConflictException('User is already suspended');
+    }
+
+    const suspendedAt = new Date();
+    const suspensionReason = reason.trim();
+
+    const suspended = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: UserStatus.SUSPENDED,
+        suspendedAt,
+        suspensionReason,
+      },
+      select: SUSPENSION_SELECT,
+    });
+
+    await this.eventsService.logEvent({
+      entityType: 'USER',
+      entityId: userId,
+      eventType: 'USER_SUSPENDED',
+      actorId,
+      payload: {
+        userId,
+        reason: suspensionReason,
+        suspendedAt: suspendedAt.toISOString(),
+        suspendedBy: actorId ?? null,
+      },
+    });
+
+    return suspended;
+  }
+
+  /**
+   * Reinstates a suspended account, clearing the suspension metadata.
+   *
+   * @throws NotFoundException if the user does not exist
+   * @throws ConflictException if the user is not suspended
+   */
+  async reinstate(userId: string, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true, suspendedAt: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.status !== UserStatus.SUSPENDED) {
+      throw new ConflictException('User is not suspended');
+    }
+
+    const reinstated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: UserStatus.ACTIVE,
+        suspendedAt: null,
+        suspensionReason: null,
+      },
+      select: SUSPENSION_SELECT,
+    });
+
+    await this.eventsService.logEvent({
+      entityType: 'USER',
+      entityId: userId,
+      eventType: 'USER_REINSTATED',
+      actorId,
+      payload: {
+        userId,
+        reinstatedAt: new Date().toISOString(),
+        reinstatedBy: actorId ?? null,
+        previousSuspendedAt: user.suspendedAt?.toISOString() ?? null,
+      },
+    });
+
+    return reinstated;
+  }
+
+  /**
+   * Admin-only user list with case-insensitive search, role/status
+   * filters, pagination and sorting. Never selects the password hash.
+   * Page size is hard-capped at 100.
+   */
+  async listUsers(query: ListUsersDto) {
+    const { page = 1, pageSize = 20, q, role, status, sort } = query;
+
+    const limit = Math.min(pageSize || 20, 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {};
+
+    if (role) {
+      where.role = role as UserRole;
+    }
+
+    if (status) {
+      where.status = status as UserStatus;
+    }
+
+    if (q) {
+      where.OR = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    let orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' };
+    if (sort) {
+      if (sort.includes(':')) {
+        const [field, direction] = sort.split(':');
+        orderBy = {
+          [field]: direction === 'asc' ? 'asc' : 'desc',
+        } as Prisma.UserOrderByWithRelationInput;
+      } else {
+        orderBy = { [sort]: 'asc' } as Prisma.UserOrderByWithRelationInput;
+      }
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          trustScore: true,
+          stellarPublicKey: true,
+          avatarUrl: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const meta = new PaginationMetaDto(page, limit, total);
+    return new PaginatedResponseDto(users, meta);
   }
 
   async updateTrustScore(userId: string, delta: number) {

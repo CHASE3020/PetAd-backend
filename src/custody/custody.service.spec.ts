@@ -565,7 +565,7 @@ describe('CustodyService', () => {
         petId: 'pet-123',
         startDate: futureDate.toISOString(),
         durationDays: 14,
-        depositAmount: 250.50,
+        depositAmount: 250.5,
       };
 
       const mockPet = {
@@ -578,7 +578,7 @@ describe('CustodyService', () => {
         id: 'escrow-456',
         stellarPublicKey: 'ESCROW_PUBLIC_KEY',
         stellarSecretEncrypted: 'ENCRYPTED_SECRET',
-        amount: 250.50,
+        amount: 250.5,
         status: 'CREATED',
       };
 
@@ -590,7 +590,7 @@ describe('CustodyService', () => {
         petId: 'pet-123',
         startDate: new Date(dto.startDate),
         endDate: new Date(),
-        depositAmount: 250.50,
+        depositAmount: 250.5,
         escrowId: 'escrow-456',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -615,7 +615,7 @@ describe('CustodyService', () => {
       expect(result).toBeDefined();
       expect(result.escrowId).toBe('escrow-456');
       expect(mockEscrowService.createEscrow).toHaveBeenCalledWith(
-        250.50,
+        250.5,
         expect.anything(),
       );
     });
