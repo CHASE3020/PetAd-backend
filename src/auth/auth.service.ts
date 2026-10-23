@@ -43,6 +43,79 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  async refresh(token: string, userAgent?: string, ip?: string) {
+    if (!token) {
+      throw new UnauthorizedException('Refresh token missing');
+    }
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const session = await this.prisma.session.findFirst({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (session.revokedAt) {
+      // Reuse detected! Revoke the entire family
+      await this.prisma.session.updateMany({
+        where: { familyId: session.familyId },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token reuse detected. Session revoked.');
+    }
+
+    if (session.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    // Revoke current session
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: { revokedAt: new Date() },
+    });
+
+    // Generate new rotated refresh token in the same family
+    const newAccessToken = await this.generateAccessToken(session.user);
+    const newRefreshToken = await this.generateRefreshToken(session.userId, userAgent, ip, session.familyId);
+
+    return {
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        firstName: session.user.firstName,
+        lastName: session.user.lastName,
+        role: session.user.role,
+      },
+    };
+  }
+
+  async getCurrentUser(userId?: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    };
+  }
+
+  async logout() {
+    return { message: 'Logged out successfully' };
+  }
+
   private async generateRefreshToken(userId: string, userAgent?: string, ip?: string, familyId?: string) {
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
