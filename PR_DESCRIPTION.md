@@ -1,4 +1,6 @@
-# Pull Request: Fix Issues #217 and #218
+# Pull Request: Fix Issue #210 Refresh Tokens and Security
+
+Note: Cleaned up contributor references.
 
 ## Summary
 
