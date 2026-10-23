@@ -19,6 +19,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/guards/roles.decorator';
 import { PetsService } from './pets.service';
@@ -53,10 +54,12 @@ export class PetsController {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary: 'List pets with pagination and filtering',
     description:
-      'Returns paginated list of pets with optional filtering and computed availability',
+      'Returns paginated list of pets with optional filtering and computed availability. ' +
+      'Listings owned by suspended accounts are omitted for anonymous and non-admin callers.',
   })
   @ApiResponse({
     status: 200,
@@ -85,8 +88,11 @@ export class PetsController {
       },
     },
   })
-  async findAll(@Query() searchDto: SearchPetsDto) {
-    return this.petsService.findAll(searchDto);
+  async findAll(
+    @Query() searchDto: SearchPetsDto,
+    @Request() req: { user?: { userId?: string; role?: string } },
+  ) {
+    return this.petsService.findAll(searchDto, req.user ?? {});
   }
 
   @Get(':id')

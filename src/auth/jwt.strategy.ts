@@ -1,7 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface JwtPayload {
@@ -23,21 +28,34 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  /**
+   * A signature-valid token is not enough: the account behind it must still
+   * exist and be ACTIVE. This makes suspension effective on the very next
+   * request instead of waiting for the token to expire.
+   */
   async validate(payload: JwtPayload) {
-    if (!payload || !payload.sub) {
-      throw new UnauthorizedException();
-    }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
+      select: { id: true, email: true, role: true, status: true },
     });
-    if (!user) {
-      throw new UnauthorizedException();
+
+    if (!user || user.status === UserStatus.DELETED) {
+      throw new UnauthorizedException('Account no longer exists');
     }
+
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'ACCOUNT_SUSPENDED',
+        message: 'This account has been suspended',
+      });
+    }
+
     return {
-      sub: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      userId: payload.sub,
+      sub: user.id,
+      userId: user.id,
+      email: user.email,
+      role: user.role,
     };
   }
 }
