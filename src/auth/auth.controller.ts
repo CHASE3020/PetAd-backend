@@ -81,24 +81,7 @@ export class AuthController {
     return { access_token: result.access_token, user: result.user };
   }
 
-  @Post('logout')
-  @ApiOperation({ summary: 'Logout user' })
-  @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const token = (req as any).cookies?.refresh_token;
-    if (token) {
-      await this.authService.logout(token);
-    }
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
-    });
-    return { message: 'Logged out successfully' };
-  }
+
 
   private setRefreshTokenCookie(res: Response, token: string) {
     const isProd = this.configService.get('NODE_ENV') === 'production';
