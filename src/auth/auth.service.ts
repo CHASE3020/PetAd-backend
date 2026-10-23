@@ -135,10 +135,6 @@ this.loginAttempts.delete(key);
     };
   }
 
-this.loginAttempts.delete(key);
-
-    const access_token = await this.generateAccessToken(user);
-    const refresh_token = await this.generateRefreshToken(user.id, userAgent, ip);
   async forgotPassword(email: string, ip: string) {
     const rateLimitKey = `${email}:${ip}`;
     const now = Date.now();
