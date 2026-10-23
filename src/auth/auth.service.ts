@@ -116,6 +116,17 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async cleanupExpiredSessions() {
+    return this.prisma.session.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          { revokedAt: { not: null } },
+        ],
+      },
+    });
+  }
+
   private async generateRefreshToken(userId: string, userAgent?: string, ip?: string, familyId?: string) {
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
