@@ -6,7 +6,12 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { Prisma, UserStatus } from '@prisma/client';
+import { ListUsersDto } from './dto/list-users.dto';
+import {
+  PaginatedResponseDto,
+  PaginationMetaDto,
+} from '../common/dto/paginated-response.dto';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 
 const SUSPENSION_SELECT = {
   id: true,
@@ -175,6 +180,74 @@ export class UsersService {
     });
 
     return reinstated;
+  }
+
+  /**
+   * Admin-only user list with case-insensitive search, role/status
+   * filters, pagination and sorting. Never selects the password hash.
+   * Page size is hard-capped at 100.
+   */
+  async listUsers(query: ListUsersDto) {
+    const { page = 1, pageSize = 20, q, role, status, sort } = query;
+
+    const limit = Math.min(pageSize || 20, 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {};
+
+    if (role) {
+      where.role = role as UserRole;
+    }
+
+    if (status) {
+      where.status = status as UserStatus;
+    }
+
+    if (q) {
+      where.OR = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    let orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' };
+    if (sort) {
+      if (sort.includes(':')) {
+        const [field, direction] = sort.split(':');
+        orderBy = {
+          [field]: direction === 'asc' ? 'asc' : 'desc',
+        } as Prisma.UserOrderByWithRelationInput;
+      } else {
+        orderBy = { [sort]: 'asc' } as Prisma.UserOrderByWithRelationInput;
+      }
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          trustScore: true,
+          stellarPublicKey: true,
+          avatarUrl: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const meta = new PaginationMetaDto(page, limit, total);
+    return new PaginatedResponseDto(users, meta);
   }
 
   async updateTrustScore(userId: string, delta: number) {

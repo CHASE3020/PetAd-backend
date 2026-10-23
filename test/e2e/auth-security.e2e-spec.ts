@@ -34,7 +34,13 @@ describe('Auth Security E2E', () => {
   });
 
   beforeEach(async () => {
-    await prisma.user.deleteMany({});
+    // Clean up only this suite's users so we don't delete users owned
+    // by other suites (they are referenced by FKs from adoptions/custody).
+    await prisma.user.deleteMany({
+      where: {
+        email: { in: ['expired@example.com', 'deleted@example.com'] },
+      },
+    });
   });
 
   describe('JWT Security', () => {

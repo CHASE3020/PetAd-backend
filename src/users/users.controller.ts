@@ -28,6 +28,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ListUsersDto } from './dto/list-users.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -69,7 +70,7 @@ export class UsersController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'List users (Admin only)' })
   async listUsers(@Query() query: ListUsersDto) {
     return this.usersService.listUsers(query);

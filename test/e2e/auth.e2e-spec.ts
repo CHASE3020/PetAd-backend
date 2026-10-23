@@ -31,8 +31,22 @@ describe('Auth E2E', () => {
   });
 
   beforeEach(async () => {
-    // Clean up users
-    await prisma.user.deleteMany({});
+    // Clean up only this suite's users. Wiping every user would break
+    // other suites that run against the same database and reference
+    // their users from adoption/custody rows (FK RESTRICT).
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          in: [
+            'test@example.com',
+            'admin@example.com',
+            'login@example.com',
+            'me@example.com',
+            'logout@example.com',
+          ],
+        },
+      },
+    });
   });
 
   describe('Registration', () => {
@@ -89,7 +103,7 @@ describe('Auth E2E', () => {
           email: 'login@example.com',
           password: 'StrongPass123',
         })
-        .expect(200);
+        .expect(201);
 
       expect(res.body).toHaveProperty('access_token');
     });

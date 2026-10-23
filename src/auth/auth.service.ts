@@ -18,6 +18,10 @@ import { EmailService } from '../email/email.service';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly forgotRateLimitMap = new Map<string, number>();
+  private readonly loginAttempts = new Map<
+    string,
+    { count: number; lastAttempt: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,6 +66,16 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const key = dto.email;
+    const attempts = this.loginAttempts.get(key);
+    if (
+      attempts &&
+      attempts.count >= 5 &&
+      Date.now() - attempts.lastAttempt < 15 * 60 * 1000
+    ) {
+      throw new UnauthorizedException('Too many login attempts');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -74,8 +88,11 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
 
     if (!isPasswordValid) {
+      this.recordFailedAttempt(key);
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    this.loginAttempts.delete(key);
 
     const payload = { sub: user.id, email: user.email, role: user.role };
     const access_token = this.jwtService.sign(payload);
@@ -92,6 +109,52 @@ export class AuthService {
     };
   }
 
+  /**
+   * Returns the profile of the authenticated user. The token is only
+   * accepted when the account still exists, so a deleted user's token
+   * is rejected with 401.
+   */
+  async getCurrentUser(userId?: string) {
+    if (!userId) {
+      throw new UnauthorizedException();
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return user;
+  }
+
+  async logout() {
+    return { message: 'Logged out successfully' };
+  }
+
+  /**
+   * Tracks a failed login attempt for in-memory account lockout.
+   * After 5 consecutive failures within 15 minutes the account is
+   * locked until the window elapses.
+   */
+  private recordFailedAttempt(key: string) {
+    const attempts = this.loginAttempts.get(key) || {
+      count: 0,
+      lastAttempt: 0,
+    };
+    attempts.count++;
+    attempts.lastAttempt = Date.now();
+    this.loginAttempts.set(key, attempts);
+  }
+
   async forgotPassword(email: string, ip: string) {
     const rateLimitKey = `${email}:${ip}`;
     const now = Date.now();
@@ -99,9 +162,13 @@ export class AuthService {
     const rateLimitWindowMs = 60 * 1000; // 1 minute rate limit window
 
     if (now - lastRequest < rateLimitWindowMs) {
-      this.logger.warn(`Rate limit exceeded for forgot password: ${rateLimitKey}`);
+      this.logger.warn(
+        `Rate limit exceeded for forgot password: ${rateLimitKey}`,
+      );
       // Return 202 identical response for anti-enumeration and rate-limiting
-      return { message: 'If the email exists, a password reset link has been sent.' };
+      return {
+        message: 'If the email exists, a password reset link has been sent.',
+      };
     }
 
     this.forgotRateLimitMap.set(rateLimitKey, now);
@@ -140,21 +207,24 @@ export class AuthService {
       }
     }
 
-    return { message: 'If the email exists, a password reset link has been sent.' };
+    return {
+      message: 'If the email exists, a password reset link has been sent.',
+    };
   }
 
   async resetPassword(token: string, newPassword: string) {
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     const resetRecord = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
       include: { user: true },
     });
 
-    if (!resetRecord || resetRecord.used || resetRecord.expiresAt < new Date()) {
+    if (
+      !resetRecord ||
+      resetRecord.used ||
+      resetRecord.expiresAt < new Date()
+    ) {
       throw new BadRequestException('Invalid or expired password reset token');
     }
 
@@ -187,7 +257,9 @@ export class AuthService {
           text: 'Your password has been successfully reset. All active sessions have been revoked.',
         });
       } catch (err) {
-        this.logger.error(`Failed to send password reset confirmation email: ${err}`);
+        this.logger.error(
+          `Failed to send password reset confirmation email: ${err}`,
+        );
       }
     }
 
