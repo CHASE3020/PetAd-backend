@@ -21,4 +21,3 @@ import { NotificationQueueService } from './services/notification-queue.service'
   exports: [NotificationQueueService],
 })
 export class JobsModule {}
-

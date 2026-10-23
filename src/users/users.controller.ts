@@ -14,6 +14,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,12 +28,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ListUsersDto } from './dto/list-users.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
-
 
 interface AuthRequest extends Request {
   user: {
@@ -64,6 +65,15 @@ export class UsersController {
 
   private actorId(req: AuthRequest): string | undefined {
     return req.user.userId ?? req.user.sub;
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'List users (Admin only)' })
+  async listUsers(@Query() query: ListUsersDto) {
+    return this.usersService.listUsers(query);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 5 } })
@@ -114,7 +124,6 @@ export class UsersController {
     return this.usersService.updateAvatar(id, upload.secure_url);
   }
 
-
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
@@ -161,4 +170,3 @@ export class UsersController {
     return this.usersService.reinstate(id, this.actorId(req));
   }
 }
-

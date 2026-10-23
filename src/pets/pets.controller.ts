@@ -9,9 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
-} 
-
-from '@nestjs/common';
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -31,7 +29,6 @@ import { UpdatePetDto } from './dto/update-pet.dto';
 import { SearchPetsDto } from './dto/search-pets.dto';
 import { UserRole } from '../common/enums';
 import { SkipThrottle } from '@nestjs/throttler';
-
 
 @SkipThrottle()
 @ApiTags('Pets')
@@ -64,7 +61,6 @@ export class PetsController {
       'Returns paginated list of pets with optional filtering and computed availability. ' +
       'Listings owned by suspended accounts are omitted for anonymous and non-admin callers.',
   })
-  
   @ApiResponse({
     status: 200,
     description: 'Paginated pets list',
@@ -204,7 +200,6 @@ export class PetsController {
       },
     },
   })
-
   @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
   @ApiResponse({ status: 404, description: 'Pet not found' })
   @ApiBearerAuth('JWT-auth')
@@ -221,7 +216,7 @@ export class PetsController {
   @ApiOperation({
     summary: 'Verify pet availability via event replay (admin only)',
     description:
-      'Replays the pet\'s event log to compute availability and compares it against the current DB state. ' +
+      "Replays the pet's event log to compute availability and compares it against the current DB state. " +
       'Returns a discrepancy report if the two differ.',
   })
   @ApiParam({ name: 'id', description: 'Pet ID' })
@@ -246,4 +241,3 @@ export class PetsController {
     return this.petsService.verifyAvailability(petId);
   }
 }
-

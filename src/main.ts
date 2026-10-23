@@ -139,4 +139,4 @@ async function bootstrap() {
   console.log(`Swagger UI: http://localhost:${port}/api`);
 }
 
-bootstrap();
+void bootstrap();
