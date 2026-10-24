@@ -16,7 +16,6 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
-  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -37,8 +36,6 @@ import {
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
-import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { ListUsersDto } from './dto/list-users.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -54,9 +51,6 @@ interface DownloadRequest extends Request {
   };
 }
 
-interface AuthRequest extends Request {
-  user: {
-    userId: string;
 interface AuthRequest extends Request {
   user: {
     userId?: string;
@@ -79,11 +73,6 @@ export class UsersController {
   private checkOwnership(req: AuthRequest, id: string) {
     const currentUserId = req.user.userId || req.user.sub;
     if (currentUserId !== id && req.user.role !== 'ADMIN') {
-    if (
-      req.user.userId !== id &&
-      req.user.sub !== id &&
-      req.user.role !== 'ADMIN'
-    ) {
       throw new UnauthorizedException();
     }
   }

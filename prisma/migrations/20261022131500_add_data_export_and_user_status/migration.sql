@@ -1,12 +1,8 @@
 -- CreateEnum
-CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'DELETED');
-
--- CreateEnum
 CREATE TYPE "DataExportStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'EXPIRED');
 
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
-ADD COLUMN "deleted_at" TIMESTAMP(3);
+ALTER TABLE "users" ADD COLUMN "deleted_at" TIMESTAMP(3);
 
 -- CreateTable
 CREATE TABLE "data_exports" (

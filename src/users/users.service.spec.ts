@@ -1,34 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UserStatus } from '@prisma/client';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
-
-describe('UsersService', () => {
-  let service: UsersService;
-
-  const mockPrisma = {
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    adoption: {
-      count: jest.fn(),
-    },
-    custody: {
-      count: jest.fn(),
-    },
-  };
-
-  const mockEventsService = {
-    logEvent: jest.fn(),
-  };
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
 
 const mockPrisma = {
   user: {
@@ -36,16 +11,24 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  adoption: {
+    count: jest.fn(),
+  },
+  custody: {
+    count: jest.fn(),
+  },
 };
 
 const mockEventsService = {
   logEvent: jest.fn(),
 };
 
-describe('UsersService – suspension lifecycle', () => {
+describe('UsersService', () => {
   let service: UsersService;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -229,7 +212,7 @@ describe('UsersService – suspension lifecycle', () => {
       mockPrisma.user.delete.mockResolvedValue({});
       const res = await service.deleteProfile('usr-1');
       expect(res.message).toBe('User deleted successfully');
-    jest.clearAllMocks();
+    });
   });
 
   describe('suspend', () => {

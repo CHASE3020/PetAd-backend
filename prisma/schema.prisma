@@ -136,7 +136,6 @@ model User {
   firstName String     @map("first_name")
   lastName  String     @map("last_name")
   role      UserRole   @default(USER)
-  status    UserStatus @default(ACTIVE)
 
   status           UserStatus @default(ACTIVE)
   suspendedAt      DateTime?  @map("suspended_at")
@@ -339,6 +338,9 @@ model Document {
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   adoption     Adoption @relation(fields: [adoptionId], references: [id])
 
+  @@map("documents")
+}
+
 model DataExport {
   id           String           @id @default(uuid())
   userId       String           @map("user_id")
@@ -356,7 +358,4 @@ model DataExport {
   @@index([status])
   @@index([createdAt])
   @@map("data_exports")
-}
-
-  @@map("documents")
 }
